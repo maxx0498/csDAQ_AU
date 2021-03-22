@@ -59,7 +59,9 @@ a = true
     sleep(0.1)
 end  
 
-imgsig = map(currentImage) do r
+theImage = throttle(0.5, currentImage)
+
+imgsig = map(theImage) do r
 	img = Gray.((reshape(r, 1280, 1024)./0xff)')
     view(img, 1:1024, 1:1280)
 end
