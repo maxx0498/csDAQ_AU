@@ -1,13 +1,13 @@
 # csDAQ
-*NC State Cold-Stage Data Acquisition System System*
+*NC State Cold-Stage Data Acquisition System*
 
 The repository contains platform independent software to operate the cold stage data acquisition system. 
 
 ## RockPro64 Install (From Source)
-This section details how create the Armbian OS image and install drivers and dependencies to run the instrument from a [RockPro64](https://www.pine64.org/rockpro64/) single board computer. We recommend to boot and run the device with the 64 GB [EMMC memory module](https://pine64.com/product/64gb-emmc-module/?v=0446c16e2e66) to improved speed. 
+This section details how create the Armbian OS image and install drivers and dependencies to run the instrument from a [RockPro64](https://www.pine64.org/rockpro64/) single board computer. We recommend to boot and run the device with the 64 GB [EMMC memory module](https://pine64.com/product/64gb-emmc-module/?v=0446c16e2e66) to improve speed. 
 
 1. Download [Armbian Mainline Server Image](https://www.armbian.com/rockpro64/)
-2. Flash EMMC Chip with image e.g. with [belanaEtcher](https://www.balena.io/etcher/)
+2. Flash EMMC Chip with image e.g. with [balenaEtcher](https://www.balena.io/etcher/)
 3. Insert into RockPro64 and boot. Consult [Armbian Documentation](https://docs.armbian.com/) for how to setup the device. Create a user account (the user is coldstage in the example below). Connect either to monitor or keyboard or directly through Ethernet port. Our preferred access method is through Ethernet and ssh with X11 forwarding.
 
 4. Update and upgrade
@@ -18,7 +18,6 @@ coldstage@rockpro64:~$ sudo apt-get upgrade
 5. Install a few required packages. Tweak according to your preferred environment (e.g. editor etc.)
 ```bash
 coldstage@rockpro64:~$ sudo apt-get install xorg x11-apps x11-xserver-utils python3-pip libqt5widgets5 fonts-cantarell at-spi2-core
-
 coldstage@rockpro64:~$ sudo reboot
 ```
 
@@ -64,7 +63,7 @@ Exit out of julia using CTRL-D.
 7. Download the [csDAQ](https://github.com/mdpetters/csDAQ) software
 
 ```bash
-coldstage@rockpro64:~$ git clone 
+coldstage@rockpro64:~$ git clone https://github.com/mdpetters/csDAQ.git
 ```
 
 8. Instantiate Project
@@ -81,7 +80,7 @@ coldstage@rockpro64:~/csDAQ/src$ julia --project -e 'using Pkg; Pkg.instantiate(
 
 this will download dependencies and precompile the packages. This may take a while...
 
-9. Ensure that Hardware Works
+9. Ensure That Hardware Works
 
 **Serial Port**
 
@@ -144,7 +143,8 @@ Make sure you can read the temperature. Check out the Hardware IO specifications
 
 The instrument uses the [IDS UI-1540LE Rev. 2](https://www.ids-imaging.us/store_us/ui-1540le-rev-2.html) camera. To run the camera on the RockPro64, follow these steps. Note that the device drivers are 3rd party software, distributed as binary blob under a somewhat [restrictive license](https://drive.google.com/file/d/1rVt6Ku8HMjNf3G0OpRKeJ6fzbWKLxUHF/view?usp=sharing)
 
-Get the file (alternatively download the file from [IDS](https://www.ids-imaging.us/software.html):
+Get the file from the shared (alternatively download the idsmanager from [IDS](https://www.ids-imaging.us/software.html)):
+
 ```bash
 coldstage@rockpro64:~$ wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=16rUGCuBNkbltdQ3xPv3TJ0JJs2C65vZg' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=16rUGCuBNkbltdQ3xPv3TJ0JJs2C65vZg" -O drivers-arm.tgz && rm -rf /tmp/cookies.txt
 ```
@@ -235,7 +235,7 @@ This will create a custom sysimage to reduce startup latency. The system image i
 
 **Swap Space**
 
-PackageC	ompiler need significant memory. Create a swap partition with at least 8 GB first.
+PackageCompiler needs significant memory. Create a swap partition with at least 8 GB first.
 
 ```bash
 coldstage@rockpro64:~$ sudo -s
