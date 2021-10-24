@@ -3,6 +3,8 @@
 
 The repository contains platform independent software to operate the cold stage data acquisition system. 
 
+## Standard Linux Install (From Source)
+
 ## RockPro64 Install (From Source)
 This section details how create the Armbian OS image and install drivers and dependencies to run the instrument from a [RockPro64](https://www.pine64.org/rockpro64/) single board computer. We recommend to boot and run the device with the 64 GB [EMMC memory module](https://pine64.com/product/64gb-emmc-module/?v=0446c16e2e66) to improve speed. 
 
