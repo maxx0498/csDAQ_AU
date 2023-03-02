@@ -14,8 +14,18 @@ using Statistics
 using ImageView
 using Images
 using TETechTC3625RS232
-using ThorlabsDCC1545M
-#sudo systemctl enable ueyeusbdrc
+using IDSpeak
+
+IDSpeak.initialize_camera() 
+IDSpeak.open_camera()
+IDSpeak.prepare_acquisition()
+IDSpeak.alloc_and_announce_buffers()
+IDSpeak.start_acquisition(1)
+IDSpeak.acquire_image()
+
+IDSpeak.image_preview(IDSpeak.acquire_image())
+
+const currentImage1 = Signal(IDSpeak.acquire_image())
 
 (@isdefined wnd) && destroy(wnd)
 gui = GtkBuilder(filename=pwd()*"/gui.glade")  # Load GUI
@@ -28,6 +38,9 @@ push!(cvs, c)
 serialPort = get_gtk_property(gui["TESerialPort1"], "text", String)
 (@isdefined portTE1) || (portTE1 = TETechTC3625RS232.configure_port(serialPort))
 TETechTC3625RS232.turn_power_off(portTE1)
+TETechTC3625RS232.write_cool_multiplier(portTE1,1)
+TETechTC3625RS232.write_heat_multiplier(portTE1,1)
+
 
 include("global_variables.jl")        # Reactive Signals and global variables
 include("te_io.jl")                   # Thermoelectric Signals (wavefrom)
@@ -55,21 +68,19 @@ MainLoop = map(_ -> main(), sampleHz)   # Run Master Loop
 
 a = true
 @async while a == true
-    push!(currentImage, ThorlabsDCC1545M.capture())
-    sleep(0.1)
+    push!(currentImage1, IDSpeak.acquire_image())
+    sleep(0.5)
 end  
 
-theImage = throttle(0.5, currentImage)
-
-imgsig = map(theImage) do r
-	img = Gray.((reshape(r, 1280, 1024)./0xff)')
-    view(img, 1:1024, 1:1280)
+imgsig = map(currentImage1) do r
+	img = IDSpeak.image_preview(currentImage1.value)
+    img1 = view(img, 1:973, 1:1297)[:,:]
+    GtkReactive.copy!(c, img1)
+    img1
 end
 
 redraw = draw(c, imgsig) do cnvs, image
-    copy!(cnvs, image)
 end
-
 
 println("Events: ")
 push!(updatePower,true)
@@ -84,5 +95,10 @@ push!(updateThermistor, true)
 sleep(1)
 push!(updatePolarity, true) 
 
-wait(Godot)
-ThorlabsDCC1545M.close()
+#wait(Godot)
+
+#IDSpeak.close()
+
+# for i = 1:100
+#        global x = IDSpeak.acquire_image()
+# end

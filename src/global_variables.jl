@@ -14,9 +14,11 @@ const path, outfile = let
     path, "CS_"*datestr*".csv" 
 end
 
+const currentSavePath = Signal(path)
+mkpath(currentSavePath.value)
+
 const rampTE1 = Reactive.Signal(false)
 const stateTE1 = Reactive.Signal(:Manual)
-const currentImage = Signal(ThorlabsDCC1545M.capture())
 const imgCounter = Signal(1)
 const currentT = Signal(0.0)
 
