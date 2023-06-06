@@ -1,305 +1,79 @@
 # csDAQ
 *NC State Cold-Stage Data Acquisition System*
 
-The repository contains platform independent software to operate the cold stage data acquisition system. 
+The repository contains software to operate the cold stage data acquisition system. 
 
-## Standard Linux Install (From Source)
+## Standard Linux Install
 
-## RockPro64 Install (From Source)
-This section details how create the Armbian OS image and install drivers and dependencies to run the instrument from a [RockPro64](https://www.pine64.org/rockpro64/) single board computer. We recommend to boot and run the device with the 64 GB [EMMC memory module](https://pine64.com/product/64gb-emmc-module/?v=0446c16e2e66) to improve speed. 
+We recommend using the containerized install described here [https://github.com/CIF-Cold-Stage/deploy-cif](https://github.com/CIF-Cold-Stage/deploy-cif). This method is mostly automated and pulls all dependencies.
 
-1. Download [Armbian Mainline Server Image](https://www.armbian.com/rockpro64/)
-2. Flash EMMC Chip with image e.g. with [balenaEtcher](https://www.balena.io/etcher/)
-3. Insert into RockPro64 and boot. Consult [Armbian Documentation](https://docs.armbian.com/) for how to setup the device. Create a user account (the user is coldstage in the example below). Connect either to monitor or keyboard or directly through Ethernet port. Our preferred access method is through Ethernet and ssh with X11 forwarding.
+The ```Containerfile``` in the deploy-cif repository reproduced below contains the steps that can be reproduced on real hardware. 
 
-4. Update and upgrade
-```bash
-coldstage@rockpro64:~$ sudo apt-get update
-coldstage@rockpro64:~$ sudo apt-get upgrade
-```
-5. Install a few required packages. Tweak according to your preferred environment (e.g. editor etc.)
-```bash
-coldstage@rockpro64:~$ sudo apt-get install xorg x11-apps x11-xserver-utils python3-pip libqt5widgets5 fonts-cantarell at-spi2-core
-coldstage@rockpro64:~$ sudo reboot
-```
+```docker
+# Use Ubunutu 22.04 Image. Ubuntu is supported for IDS Peak
+FROM docker.io/library/ubuntu:22.04
 
-6. Download [Julia](https://julialang.org/downloads/). We recommend to use the *Current stable release*. For Armbian use AArch64
+LABEL summary="Deploy container for CIF Cold Stage" \
+      maintainer="Markus Petters <mdpetter@ncsu.edu>"
 
-Download:
-```bash
-coldstage@rockpro64:~$ wget https://julialang-s3.julialang.org/bin/linux/aarch64/1.6/julia-1.6.0-rc3-linux-aarch64.tar.gz
-```
+# Install package dependencies for IDS Peak and csDAQ
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get -y install libqt5core5a libqt5gui5 libqt5widgets5 libqt5multimedia5 libqt5quick5 qml-module-qtquick-window2 qml-module-qtquick2 qtbase5-dev qtdeclarative5-dev qml-module-qtquick-dialogs qml-module-qtquick-controls qml-module-qtquick-layouts qml-module-qt-labs-settings qml-module-qt-labs-folderlistmodel libusb-1.0-0 libatomic1 git wget gpg python3 python3-pip apt-transport-https vim
 
-Extract the file: 
-```bash
-coldstage@rockpro64:~$ tar xvfz julia-1.6.0-rc3-linux-aarch64.tar.gz
-```
+# Download and install julia version
+ENV JULIA_VERSION=1.8.5
 
-Create symbolic link:
-```bash
-coldstage@rockpro64:~$ sudo ln -s $HOME/julia-1.6.0-rc3/bin/julia /usr/bin/julia
-```
+RUN mkdir /opt/julia-${JULIA_VERSION} && \
+    cd /tmp && \
+    wget -q https://julialang-s3.julialang.org/bin/linux/x64/`echo ${JULIA_VERSION} | cut -d. -f 1,2`/julia-${JULIA_VERSION}-linux-x86_64.tar.gz && \
+    tar xzf julia-${JULIA_VERSION}-linux-x86_64.tar.gz -C /opt/julia-${JULIA_VERSION} --strip-components=1 && \
+    rm /tmp/julia-${JULIA_VERSION}-linux-x86_64.tar.gz
+RUN ln -fs /opt/julia-*/bin/julia /usr/local/bin/julia
 
-Test:
-```bash
-coldstage@rockpro64:~$ julia
-```
+# Install VS Code 
+RUN wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+RUN install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+RUN sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+RUN rm -f packages.microsoft.gpg
+RUN apt-get update && \
+    apt-get -y install code
 
-should bring up
+# Install IDS Peak drivers
+# This pulls the deb package from a google drive link and installs it
+# dpkg will install the udev rules. However, the rules.d directory doesn't exist in a container
+RUN pip install gdown && \
+    gdown https://drive.google.com/uc?id=11BJlKy6Jp5HTbDq9Nqw445gDX4AZumbZ && \
+    mkdir /etc/udev && \
+    mkdir /etc/udev/rules.d && \
+    dpkg -i ids-peak-linux-x86-2.1.0.0-64.deb
 
-```bash
-               _
-   _       _ _(_)_     |  Documentation: https://docs.julialang.org
-  (_)     | (_) (_)    |
-   _ _   _| |_  __ _   |  Type "?" for help, "]?" for Pkg help.
-  | | | | | | |/ _` |  |
-  | | |_| | | | (_| |  |  Version 1.6.0-rc3 (2021-03-16)
- _/ |\__'_|_|_|\__'_|  |  Official https://julialang.org/ release
-|__/                   |
+RUN pip install "/usr/local/share/ids/bindings/python/wheel/ids_peak_ipl-1.4.0.0-cp310-cp310-linux_x86_64.whl" && \
+    pip install "/usr/local/share/ids/bindings/python/wheel/ids_peak-1.4.2.2-cp310-cp310-linux_x86_64.whl"
 
-julia> 
-```
+# Install DropFreezingDetection and csDAQ software in /opt folder of container
+RUN cd /opt && \
+    git clone https://github.com/CIF-Cold-Stage/csDAQ.git && \
+    git clone https://github.com/CIF-Cold-Stage/DropFreezingDetection.jl
 
-Exit out of julia using CTRL-D.
+# Fix Permissions so $USER can access it from distrobox
+RUN chmod -R a+rw /opt
 
-7. Download the [csDAQ](https://github.com/mdpetters/csDAQ) software
-
-```bash
-coldstage@rockpro64:~$ git clone https://github.com/mdpetters/csDAQ.git
+RUN touch /etc/localtime
 ```
 
-8. Instantiate Project
-
-Change to ```src``` directory:
-```bash
-coldstage@rockpro64:~$ cd csDAQ/src/
-```
-
-Run:
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia --project -e 'using Pkg; Pkg.instantiate()'
-```
-
-this will download dependencies and precompile the packages. This may take a while...
-
-9. Ensure That Hardware Works
-
-**Serial Port**
-
-Check that the user belongs to the group ```dialout```
-```bash
-coldstage@rockpro64:~$ groups
-coldstage tty disk dialout sudo audio video plugdev games users systemd-journal input netdev ssh
-```
-
-If **not**, add the user to the group and reboot. If yes, skip this step.
-
-```bash
-coldstage@rockpro64:~$ sudo usermod -a -G dialout $USER
-coldstage@rockpro64:~$ sudo reboot
-```
-
-Start Julia REPL from the ```src/``` directory
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia  --project
-```
-
-Insert USB-to-serial adapter. We recommend devices with a genuine FTDI chipset to ensure compatibility with the Linux kernel. Other chipsets may or may not work. Run the following
-
-```julia
-julia> using LibSerialPort
-
-julia> list_ports()
-
-/dev/ttyS2
-	Description:	ttyS2
-	Transport type:	SP_TRANSPORT_NATIVE
-/dev/ttyUSB0
-	Description:	FT232R USB UART - AD0K0TCI
-	Transport type:	SP_TRANSPORT_USB
-
-julia>
-```
-
-The system should show ```/dev/ttyUSB0``` (and additional ports if you use a multi-port device). Exit out of julia (CTRL-D).
-
-**Temperature Controller**
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia  --project
-```
-
-```julia
-julia> using TETechTC3625RS232
-
-julia> port = TETechTC3625RS232.configure_port("/dev/ttyUSB0")
-Ptr{LibSerialPort.Lib.SPPort} @0x000000003824c640
-
-julia> T1 = TETechTC3625RS232.read_sensor_T1(port)
-```
-
-Make sure you can read the temperature. Check out the Hardware IO specifications for a full list of commands [https://github.com/mdpetters/TETechTC3625RS232.jl](https://github.com/mdpetters/TETechTC3625RS232.jl). Make sure you follow the correct setup instructions for the temperature controller before applying power to the TEC. 
-
-**Camera**
-
-The instrument uses the [IDS UI-1540LE Rev. 2](https://www.ids-imaging.us/store_us/ui-1540le-rev-2.html) camera. To run the camera on the RockPro64, follow these steps. Note that the device drivers are 3rd party software, distributed as binary blob under a somewhat [restrictive license](https://drive.google.com/file/d/1rVt6Ku8HMjNf3G0OpRKeJ6fzbWKLxUHF/view?usp=sharing)
-
-Get the file from the shared (alternatively download the idsmanager from [IDS](https://www.ids-imaging.us/software.html)):
-
-```bash
-coldstage@rockpro64:~$ wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=16rUGCuBNkbltdQ3xPv3TJ0JJs2C65vZg' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=16rUGCuBNkbltdQ3xPv3TJ0JJs2C65vZg" -O drivers-arm.tgz && rm -rf /tmp/cookies.txt
-```
-
-Extract the tarball:
-```bash
-coldstage@rockpro64:~$ tar xfvz drivers-arm.tgz 
-```
-
-Run the installer:
-```bash
-coldstage@rockpro64:~$ sudo ./ueye_4.94.0.1220_arm64.run
-```
-
-Enable the service and reboot:
-```bash
-coldstage@rockpro64:~$ sudo systemctl enable ueyeusbdrc
-coldstage@rockpro64:~$ sudo reboot
-```
-
-Plug in the USB camera. Run the IDS camera manager. The camera should appear in the Cameralist.
-
-```bash
-coldstage@rockpro64:~$ idscameramanager
-```
-
-![](doc/cameramanager.png)
-
-Exit out of the IDS Camera Manager. Next install the python hooks.
-
-```bash
-coldstage@rockpro64:~$ pip3 install pyueye opencv-python numpy￼
-Collecting pyueye
-  Downloading pyueye-4.90.0.0-py2.py3-none-any.whl (51 kB)
-     |████████████████████████████████| 51 kB 1.1 MB/s 
-Collecting opencv-python
-  Downloading opencv_python-4.5.1.48-cp38-cp38-manylinux2014_aarch64.whl (34.5 MB)
-     |████████████████████████████████| 34.5 MB 5.3 MB/s 
-Collecting numpy
-  Downloading numpy-1.20.1-cp38-cp38-manylinux2014_aarch64.whl (12.7 MB)
-     |████████████████████████████████| 12.7 MB 6.7 MB/s 
-Collecting enum34
-  Downloading enum34-1.1.10-py3-none-any.whl (11 kB)
-Installing collected packages: enum34, pyueye, numpy, opencv-python
-  WARNING: The scripts f2py, f2py3 and f2py3.8 are installed in '/home/coldstage/.local/bin' which is not on PATH.
-  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
-Successfully installed enum34-1.1.10 numpy-1.20.1 opencv-python-4.5.1.48 pyueye-4.90.0.0
-```
-
-Start Julia REPL from the ```src/``` directory
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia --project
-```
-
-Test if camera initializes:
-
-```julia
-julia> using ThorlabsDCC1545M
-IS_COLORMODE_MONOCHROME: 
-	m_nColorMode: 		 6
-	nBitsPerPixel: 		 8
-	bytes_per_pixel: 		 1
-
-Camera model:		 UI154xLE-M
-Camera serial no.:	 4103293202
-Maximum image width:	 1280
-Maximum image height:	 1024
-
-Camera Initialized
-```
-
-Exit out of julia (CTRL-D).
-
-10. Test DAQ Software
-
-Make sure that USB Camera and USB-to-serial port are connected to the RockPro64. Run from the bash prompt: 
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia --project main.jl
-```
-
-This will take a while (> 120s)... If successful, the GUI should appear.
-
-11. Create system image.
-
-This will create a custom sysimage to reduce startup latency. The system image is created using [PackageCompiler](https://julialang.github.io/PackageCompiler.jl/dev/sysimages/).  
-
-**Swap Space**
-
-PackageCompiler needs significant memory. Create a swap partition with at least 8 GB first.
-
-```bash
-coldstage@rockpro64:~$ sudo -s
-root@rockpro64:/home/coldstage# dd if=/dev/zero of=/swapfile1 bs=1024 count=8290304
-root@rockpro64:/home/coldstage# chown root:root /swapfile1
-root@rockpro64:/home/coldstage# chmod 0600 /swapfile1
-root@rockpro64:/home/coldstage# mkswap /swapfile1 
-root@rockpro64:/home/coldstage# swapon /swapfile1
-```
-
-Exit root shell with CTRL-D. Note that the swap space is not active after reboot. 
-
-**Compile**
-
-Change to ```csDAQ/src/``` directory and run as coldstage user:
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia --project --optimize=3 make_sysimage.jl
-```
-
-This will bring up the GUI. Close the GUI with the ```Stop DAQ``` button and wait. This will take a while (> 20 min)... It should produce the file ```sys_daq.so```
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ ls -lh sys_daq.so
--rwxrwxr-x 1 coldstage coldstage 295M XXX XX XX:XX sys_daq.so
-```
-
- **Test New System Image**
-
-Load GUI with new sysimage
-
-```bash
-coldstage@rockpro64:~/csDAQ/src$ julia --project --sysimage sys_daq.so main.jl
-```
-
-This should load in ~30 s.
-
-**Create Startup Script**
-
-Create file in home directory:
-
-```bash
-coldstage@rockpro64:~$ nano $HOME/daq.sh
-``` 
-
-Paste the following content
-
-```bash
-#!/bin/bash
-cd $HOME/csDAQ/src
-julia -q --project --sysimage sys_daq.so main.jl
-cd $HOME
-```
-
-Change permissions to execute:
-
-```bash
-coldstage@rockpro64:~$ chmod a+x $HOME/daq.sh
-``` 
-
-The software can now be started directly from the home directory via:
-
-```bash
-coldstage@rockpro64:~$ ./daq.sh
-``` 
+## General Steps
+
+1. Provision the OS. Linux Ubuntu-22.04 is preferred for full compatibility.
+2. Install the dependencies
+3. Install VS-Code editor
+4. Install Julia. The latest version from [https://julialang.org/downloads/](https://julialang.org/downloads/) should work. 
+5. Install IDS Peak. You will need to download the latest version from [https://www.ids-imaging.us/](https://www.ids-imaging.us/).
+6. Test that the camera works using IDS Cockpit
+7. Test that the python bindings work to control the camera
+8. Identify the serial port and test that communication with temperature controller works [https://github.com/CIF-Cold-Stage/TETechTC3625RS232.jl](https://github.com/CIF-Cold-Stage/TETechTC3625RS232.jl)
+9. Run the csDAQ ```main.jl```. For initial install, it is recommended to execute the code line-by-line from VS-Code to catch potential errors.
+
+### Porting to Windows or MacOS
+
+We have managed to run this code on MS Windows without issues. However, the code may need slight tweaking, depending on the selected environment. 
