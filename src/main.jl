@@ -95,10 +95,7 @@ push!(updateThermistor, true)
 sleep(1)
 push!(updatePolarity, true) 
 
-#wait(Godot)
+# You must wait for Godot if running this from the command line or the script will exit out.
+wait(Godot)
 
-#IDSpeak.close()
-
-# for i = 1:100
-#        global x = IDSpeak.acquire_image()
-# end
+IDSpeak.close()
