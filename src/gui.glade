@@ -212,7 +212,7 @@
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
-                    <property name="label" translatable="yes">Manuel/Ramp</property>
+                    <property name="label" translatable="yes">Manual/Ramp</property>
                   </object>
                   <packing>
                     <property name="x">485</property>
