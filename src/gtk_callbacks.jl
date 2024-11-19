@@ -3,10 +3,9 @@ signal_connect(te1Mode, "changed") do widget, others...
     push!(stateTE1,get_gtk_property(te1Mode, "active-id", String) |> Symbol)
     println(stateTE1.value)
     if stateTE1.value == :Ramp
-        str0 = ENV["USER"]
         str1 = Dates.format(now(), "yyyymmddTHHMMSS")
         str2 = get_gtk_property(gui["Experiment"], :text, String)
-        base = "/home/"*str0*"/Data/CS Daq/"
+        base = "/home/shd-cold-stage/Documents/Data/"
         push!(currentSavePath, base*str1*"_"*str2*"/")
         mkpath(base*str1*"_"*str2*"/")
     end
