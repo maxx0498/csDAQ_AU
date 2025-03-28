@@ -5,7 +5,7 @@ signal_connect(te1Mode, "changed") do widget, others...
     if stateTE1.value == :Ramp
         str1 = Dates.format(now(), "yyyymmddTHHMMSS")
         str2 = get_gtk_property(gui["Experiment"], :text, String)
-        base = "/home/daq.local/Data/CS Daq/"
+        base = "/home/shd-cold-stage/Documents/Data/"
         push!(currentSavePath, base*str1*"_"*str2*"/")
         mkpath(base*str1*"_"*str2*"/")
     end

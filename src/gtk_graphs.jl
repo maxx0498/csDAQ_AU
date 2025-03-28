@@ -17,33 +17,33 @@
 import NumericIO:UEXPONENT
 
 # -- adds an x/y point to the plot
-function addpoint!(x::Float64,y::Float64,plot::InspectDR.Plot2D,
-				   gplot::InspectDR.GtkPlot,strip::Int,autoscale::Bool)
-	
-	push!(plot.data[strip].ds.x,x)
-	push!(plot.data[strip].ds.y,y)
-	cut = plot.data[strip].ds.x[end]-bufferlength
-	ii = plot.data[strip].ds.x .<= cut
-	deleteat!(plot.data[strip].ds.x, ii)	
-	deleteat!(plot.data[strip].ds.y, ii)
-	plot.xext = InspectDR.PExtents1D()
-	plot.xext_full = InspectDR.PExtents1D(plot.data[strip].ds.x[1],
-										  plot.data[strip].ds.x[end])
+function addpoint!(x::Float64, y::Float64, plot::InspectDR.Plot2D,
+                   gplot::InspectDR.GtkPlot, strip::Int, autoscale::Bool)
 
-	if autoscale == true
-		miny,maxy = Float64[],Float64[]
-		for x in plot.data
-			push!(miny, minimum(x.ds.y))
-			push!(maxy, maximum(x.ds.y))
-		end
-		miny =  minimum(miny)
-		maxy =  maximum(maxy)
-		graph = plot.strips[1]
-		graph.yext = InspectDR.PExtents1D() 
-		graph.yext_full = InspectDR.PExtents1D(miny, maxy)
-	end
+    push!(plot.data[strip].ds.x, x)
+    push!(plot.data[strip].ds.y, y)
+    cut = plot.data[strip].ds.x[end] - bufferlength
+    ii = plot.data[strip].ds.x .<= cut
+    deleteat!(plot.data[strip].ds.x, ii)    
+    deleteat!(plot.data[strip].ds.y, ii)
+    plot.xext = InspectDR.PExtents1D()
+    plot.xext_full = InspectDR.PExtents1D(plot.data[strip].ds.x[1],
+                                          plot.data[strip].ds.x[end])
 
-	refreshplot(gplot)
+    if autoscale
+        miny, maxy = Float64[], Float64[]
+        for x in plot.data
+            push!(miny, minimum(x.ds.y))
+            push!(maxy, maximum(x.ds.y))
+        end
+        miny = minimum(miny)
+        maxy = maximum(maxy)
+        graph = plot.strips[1]
+        graph.yext = InspectDR.PExtents1D()
+        graph.yext_full = InspectDR.PExtents1D(miny, maxy)
+    end
+
+    Gtk.@idle_add refreshplot(gplot)
 end
 
 # -- adds the plot to a Gtk box located in a window
@@ -98,15 +98,17 @@ end
 # -- setup of the frame for a particular GUI plot
 # Traced from InspectDR source code without title refresh
 function refreshplot(gplot::InspectDR.GtkPlot)
-	if !gplot.destroyed
-        set_gtk_property!(gplot.grd, :visible, false) 
-        InspectDR.sync_subplots(gplot)
-		for sub in gplot.subplots
-			InspectDR.render(sub, refreshdata=true)  
-		    Gtk.draw(sub.canvas)
-		end
-        set_gtk_property!(gplot.grd, :visible, true)
-        Gtk.showall(gplot.grd)
-        sleep(eps(0.0))
-	end
+    if !gplot.destroyed
+        Gtk.@idle_add begin
+            set_gtk_property!(gplot.grd, :visible, false)
+            InspectDR.sync_subplots(gplot)
+            for sub in gplot.subplots
+                InspectDR.render(sub, refreshdata=true)
+                Gtk.draw(sub.canvas)
+            end
+            set_gtk_property!(gplot.grd, :visible, true)
+            Gtk.showall(gplot.grd)
+            sleep(eps(0.0))
+        end
+    end
 end

@@ -79,6 +79,7 @@ imgsig = map(currentImage1) do r
     img1
 end
 
+sleep(2)
 redraw = draw(c, imgsig) do cnvs, image
 end
 
